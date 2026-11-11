@@ -97,6 +97,23 @@ manifest. The verifier detects such incomplete or mismatched packs. These
 filesystem protections are designed and tested on Linux; other POSIX systems and
 adversarial network filesystem behavior have not been established.
 
+## Where it runs and what it writes
+
+The plugin runs inside the Hermes plugin host process. There is no separate
+sandbox and no privilege of its own beyond what that process has; the protections
+described above are what keep it inside its workspace. Hermes gets exactly two
+entry points: `sfx_generate` and `sfx_verify`.
+
+A generation call writes, inside the resolved workspace root and nowhere else:
+
+- one 16-bit mono WAV per requested cue,
+- `manifest.json`, recording each cue's preset, seed, sample count and sha256,
+- `.sfx-pack.lock`, intentionally retained after the run.
+
+There are no network calls and no subprocess execution. The CLI accepts an
+explicit `--root`, and `verify <path>` can inspect a user-selected file outside
+the workspace; the registered tools accept neither.
+
 ## Hermes compatibility
 
 `plugin.yaml` declares Hermes `>=0.23.0`, the version previously reported as
