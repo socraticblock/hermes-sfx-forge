@@ -122,8 +122,9 @@ not asserted. Independent Hermes validation must be rerun on the final public
 commit before catalog submission.
 
 The filesystem protections are Linux/POSIX-specific (`O_NOFOLLOW`, `dir_fd`
-operations, and an `fcntl` advisory lock), so v1 targets Linux and macOS.
-Windows is not supported: `fcntl` is unavailable there.
+operations, and an `fcntl` advisory lock). v1 supports **Linux only**. macOS is not
+verified and is not advertised as supported; Windows is not supported, because
+`fcntl` is unavailable there.
 
 ## License
 
