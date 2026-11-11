@@ -6,7 +6,7 @@ assets. It calls two libraries at runtime.
 | Component | Purpose | License | Upstream |
 |---|---|---|---|
 | NumPy | array math and the seeded generator | BSD-3-Clause (the reference distribution also bundles 0BSD, MIT, Zlib and CC0-1.0 components; binary wheels add their own notices) | https://numpy.org |
-| SciPy | `resample_poly` for the 4x inter-sample peak estimate | BSD-3-Clause (binary wheels bundle additional permissively licensed components) | https://scipy.org |
+| SciPy | `lfilter` for synthesis noise filtering and `resample_poly` for inter-sample peak estimation | BSD-3-Clause (binary wheels bundle additional permissively licensed components) | https://scipy.org |
 
 Development only:
 
@@ -17,6 +17,5 @@ Development only:
 No authorship of these components is claimed. The synthesis, the preset schema,
 the measurement code and the delivery gate are original to this project.
 
-Standards: the MIDI-independent file format is not used and no standard's text is
-reproduced. The gate reports an *estimated* inter-sample peak from 4x oversampling;
-it is not certified BS.1770 true-peak measurement.
+The gate reports an *estimated* inter-sample peak from 4x oversampling; it is
+not certified BS.1770 true-peak measurement.

@@ -1,6 +1,6 @@
 """Synthesis primitives and the preset renderer.
 
-Pure NumPy. No subprocess, no network, no filesystem access: this module turns a
+NumPy and SciPy only. No subprocess, network, or filesystem access: this module turns a
 preset dict plus a seed into a float32 mono array, and nothing else.
 
 Determinism rule: every cue derives its own generator from

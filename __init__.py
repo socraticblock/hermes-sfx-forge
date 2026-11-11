@@ -1,23 +1,39 @@
-"""Hermes plugin entry point for hermes-sfx-forge.
+"""Hermes plugin entry point: registration only, with isolated vendored imports.
 
-Registration only: every behaviour lives in sfx_forge.core, which the CLI calls
-through the same functions. Two loader styles exist — the plugin host imports this
-file by path (so the plugin directory must join sys.path for the vendored package
-to resolve), while tests and `python -m` import it as part of a package.
+Hermes loads this file by path; ordinary package imports instead use the normal
+relative module. Neither mode changes the host's global sys.path.
 """
-
 from __future__ import annotations
 
-try:  # imported as a package (tests, `python -m`)
+import sys
+
+if __package__ and hasattr(sys.modules.get(__package__), "__path__"):
     from .sfx_forge.tools import register_tools
-except ImportError:  # imported by path by the plugin host
-    import sys
+else:
+    import hashlib
+    import importlib
+    import importlib.util
     from pathlib import Path
 
-    _here = str(Path(__file__).resolve().parent)
-    if _here not in sys.path:
-        sys.path.insert(0, _here)
-    from sfx_forge.tools import register_tools
+    _package_dir = Path(__file__).resolve().parent / "sfx_forge"
+    _module_name = "_hermes_sfx_forge_" + hashlib.sha256(
+        str(_package_dir).encode("utf-8")
+    ).hexdigest()[:16]
+    if _module_name not in sys.modules:
+        _spec = importlib.util.spec_from_file_location(
+            _module_name, _package_dir / "__init__.py",
+            submodule_search_locations=[str(_package_dir)],
+        )
+        if _spec is None or _spec.loader is None:
+            raise ImportError("cannot import packaged SFX Forge")
+        _module = importlib.util.module_from_spec(_spec)
+        sys.modules[_module_name] = _module
+        try:
+            _spec.loader.exec_module(_module)
+        except BaseException:
+            sys.modules.pop(_module_name, None)
+            raise
+    register_tools = importlib.import_module(f"{_module_name}.tools").register_tools
 
 __all__ = ["register"]
 

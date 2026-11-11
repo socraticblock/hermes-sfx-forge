@@ -9,7 +9,7 @@ so the two interfaces cannot drift.
 
 ## What this is not
 
-- Not a model and not a song generator. There is no ML, no GPU and no network. Synthesis is NumPy; SciPy is used only for the 4x oversampling that measures inter-sample peak.
+- Not a model and not a song generator. There is no ML, no GPU and no network. Synthesis uses NumPy and SciPy for array math, noise filtering and inter-sample peak estimation.
 - Not a sampler. Every sample is synthesized; no audio assets ship with it.
 - Not a loudness meter. Integrated LUFS is deliberately absent: BS.1770 gates in
   400 ms blocks, and most one-shots are shorter than one block, so the measurement
@@ -60,14 +60,53 @@ floating-point results and the WAV quantizer are only pinned per environment.
 
 ## Output safety
 
-`verify --folder` enforces the exact sample count for every preset it checks. A bare
-`verify <path>` cannot know which preset produced the file, so it reports the count
-it measured instead of asserting equality — use the folder form for a gate verdict.
+`verify --folder` checks the exact sample count and **SHA-256 against the pack
+manifest** for every selected cue. It also regenerates the expected WAV SHA-256
+from the recorded seed and the installed preset engine. With no explicit
+`--preset`, it verifies the cues listed in that manifest. Missing, malformed,
+oversized, or inconsistent manifests fail closed. The manifest is an **integrity consistency record**, not a
+signature or proof of authenticity: someone able to rewrite both WAVs and the
+manifest can forge a new consistent pack. A bare `verify <path>` cannot know
+which preset produced a file, so it only reports the sample count; use folder
+verification for a complete pack verdict. The bare path form is an explicitly
+invoked local CLI operation and may inspect a user-selected path outside the
+workspace; Hermes tools accept only validated folder names.
 
-Names must match `^[a-z0-9][a-z0-9_-]{0,39}$`. Absolute paths, traversal, Windows
-drive forms, separators, symlinks and collisions are refused in code, and files are
-published through a private temporary file and an atomic rename, so a partial WAV
-never appears at the final name.
+Names must match `^[a-z0-9][a-z0-9_-]{0,39}$`. Untrusted absolute paths,
+traversal, Windows drive forms, separators, and symlinked pack folders/files are
+refused. Output reads and writes are anchored to open directory descriptors with
+`O_NOFOLLOW` on Linux/POSIX, so swapping a folder name for a symlink cannot
+redirect the operation. For `overwrite=false`, a hard-link publication prevents
+replacement even if another process creates the filename after the preflight
+check. Cooperative pack generators use a nonblocking POSIX advisory lock to
+reject overlapping writes to the same folder. The stable `.sfx-pack.lock` file
+is intentionally retained after generation; this is not a lock against hostile
+processes able to alter the directory. Verification does not acquire that lock
+and may report an in-progress pack as inconsistent. For `overwrite=true`, a
+directory-relative atomic rename replaces only the directory entry and never
+writes through an existing symlink.
+
+Verification is limited to **1 MiB per WAV**, at most **2 seconds of PCM** per
+file, and **256 KiB per manifest**. Because the integrity check re-renders from
+the manifest seed with the *installed* engine, changing a preset or the renderer
+deliberately invalidates previously generated packs — regenerate after upgrading
+rather than re-verifying old output. Individual files are published atomically,
+but a pack of multiple WAVs plus its manifest is **not an all-or-nothing
+transaction**: a failed generation can leave finished WAV files without a new
+manifest. The verifier detects such incomplete or mismatched packs. These
+filesystem protections are designed and tested on Linux; other POSIX systems and
+adversarial network filesystem behavior have not been established.
+
+## Hermes compatibility
+
+`plugin.yaml` declares Hermes `>=0.23.0`, the version previously reported as
+validated by the implementation author. Compatibility on earlier versions is
+not asserted. Independent Hermes validation must be rerun on the final public
+commit before catalog submission.
+
+The filesystem protections are Linux/POSIX-specific (`O_NOFOLLOW`, `dir_fd`
+operations, and an `fcntl` advisory lock), so v1 targets Linux and macOS.
+Windows is not supported: `fcntl` is unavailable there.
 
 ## License
 

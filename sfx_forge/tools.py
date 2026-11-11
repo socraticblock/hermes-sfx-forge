@@ -51,7 +51,7 @@ SFX_VERIFY_SCHEMA = {
     "description": (
         "Verify WAV files in a pack folder against the delivery gate: exact sample count, sample and "
         "inter-sample peak ceilings, DC offset, clipping and edge silence. Returns a machine-readable "
-        "pass/fail verdict per cue with the failing gate named."
+        "pass/fail verdict per cue, including SHA-256 consistency with the pack manifest."
     ),
     "parameters": {
         "type": "object",
@@ -74,7 +74,11 @@ SFX_VERIFY_SCHEMA = {
 def _guard(fn):
     def wrapper(args, **kwargs):
         try:
-            return _dumps(fn(args or {}))
+            if args is None:
+                args = {}
+            if not isinstance(args, dict):
+                raise RequestRejected("tool arguments must be a JSON object")
+            return _dumps(fn(args))
         except (RequestRejected, PathRejected) as exc:
             return _dumps({"error": str(exc), "kind": "rejected"})
         except (OSError, ValueError, RuntimeError) as exc:

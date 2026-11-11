@@ -63,9 +63,13 @@ def main(argv: list[str] | None = None) -> int:
                   else f"{'pass' if result.get('passed') else 'FAIL'}  {result}")
             return 0 if result.get("passed") else 1
     except (RequestRejected, PathRejected) as exc:
-        print(json.dumps({"error": str(exc)}) if getattr(args, "json", False) else f"error: {exc}",
-              file=sys.stderr)
+        print(json.dumps({"error": str(exc), "kind": "rejected"})
+              if getattr(args, "json", False) else f"error: {exc}", file=sys.stderr)
         return 2
+    except (OSError, ValueError, RuntimeError) as exc:
+        print(json.dumps({"error": str(exc), "kind": "failed"})
+              if getattr(args, "json", False) else f"error: {exc}", file=sys.stderr)
+        return 1
     return 0
 
 

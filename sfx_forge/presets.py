@@ -106,33 +106,79 @@ def preset_names() -> list[str]:
     return sorted(PRESETS)
 
 
+def _number(name: str, value, lo: float, hi: float) -> None:
+    """Validate numerical ranges without first casting huge integers to float."""
+    if (isinstance(value, bool) or not isinstance(value, (int, float))
+            or not lo <= value <= hi):
+        raise ValueError(f"{name} must be a finite number in [{lo}, {hi}]")
+
+
+_LAYER_FIELDS = {
+    "tone": ({"wave", "freq"}, {"glide_to"}),
+    "sweep": ({"freq", "freq_to"}, {"wave"}),
+    "fm": ({"carrier", "ratio", "index"}, set()),
+    "noise": ({"band"}, set()),
+}
+_COMMON_FIELDS = {"kind", "gain", "decay", "swell"}
+_WAVES = {"sine", "tri", "saw", "square"}
+
+
 def validate_preset(name: str, preset: dict) -> None:
-    """Raise ValueError unless a preset satisfies schema v1."""
+    """Reject schemas that could crash or exceed the bounded renderer contract."""
     if not isinstance(preset, dict):
         raise ValueError(f"preset {name}: not a mapping")
+    if set(preset) - {"duration_ms", "layers", "room"}:
+        raise ValueError(f"preset {name}: unexpected top-level field")
     dur = preset.get("duration_ms")
-    if not isinstance(dur, int) or isinstance(dur, bool):
-        raise ValueError(f"preset {name}: duration_ms must be an int")
-    if not MIN_DURATION_MS <= dur <= MAX_DURATION_MS:
-        raise ValueError(f"preset {name}: duration_ms out of range")
+    if type(dur) is not int or not MIN_DURATION_MS <= dur <= MAX_DURATION_MS:
+        raise ValueError(f"preset {name}: duration_ms must be a bounded integer")
     layers = preset.get("layers")
     if not isinstance(layers, list) or not 1 <= len(layers) <= MAX_LAYERS:
         raise ValueError(f"preset {name}: layers must be 1..{MAX_LAYERS}")
+
     for i, layer in enumerate(layers):
-        if not isinstance(layer, dict) or layer.get("kind") not in {"tone", "fm", "noise", "sweep"}:
-            raise ValueError(f"preset {name}: layer {i} has an unknown kind")
-        for key in ("freq", "carrier", "ratio", "index", "gain", "decay", "swell"):
-            if key in layer:
-                v = layer[key]
-                if not isinstance(v, (int, float)) or isinstance(v, bool):
-                    raise ValueError(f"preset {name}: layer {i}.{key} must be numeric")
-                if v != v or v in (float("inf"), float("-inf")):
-                    raise ValueError(f"preset {name}: layer {i}.{key} must be finite")
-        band = layer.get("band")
-        if band is not None:
-            if (not isinstance(band, (list, tuple)) or len(band) != 2
-                    or not all(isinstance(b, (int, float)) for b in band) or band[0] >= band[1]):
-                raise ValueError(f"preset {name}: layer {i}.band must be [lo, hi]")
+        prefix = f"preset {name}: layer {i}"
+        if not isinstance(layer, dict) or not isinstance(layer.get("kind"), str):
+            raise ValueError(f"{prefix}: must be a mapping with a string kind")
+        kind = layer["kind"]
+        if kind not in _LAYER_FIELDS:
+            raise ValueError(f"{prefix}: unknown kind")
+        required, optional = _LAYER_FIELDS[kind]
+        if not required <= layer.keys():
+            raise ValueError(f"{prefix}: missing required fields {sorted(required - layer.keys())}")
+        if layer.keys() - (required | optional | _COMMON_FIELDS):
+            raise ValueError(f"{prefix}: unknown layer fields")
+        if "wave" in layer and (not isinstance(layer["wave"], str) or layer["wave"] not in _WAVES):
+            raise ValueError(f"{prefix}: unknown waveform")
+        for field in ("freq", "glide_to", "freq_to", "carrier"):
+            if field in layer:
+                _number(f"{prefix}.{field}", layer[field], 1.0, 20_000.0)
+        if "ratio" in layer:
+            _number(f"{prefix}.ratio", layer["ratio"], 0.01, 16.0)
+        if "index" in layer:
+            _number(f"{prefix}.index", layer["index"], 0.0, 20.0)
+        if "gain" in layer:
+            _number(f"{prefix}.gain", layer["gain"], 0.0, 4.0)
+        if "decay" in layer:
+            _number(f"{prefix}.decay", layer["decay"], 0.0, 200.0)
+        if "swell" in layer:
+            _number(f"{prefix}.swell", layer["swell"], 0.0, 8.0)
+        if kind == "noise":
+            band = layer["band"]
+            if not isinstance(band, (list, tuple)) or len(band) != 2:
+                raise ValueError(f"{prefix}.band must contain two frequencies")
+            _number(f"{prefix}.band[0]", band[0], 1.0, 20_000.0)
+            _number(f"{prefix}.band[1]", band[1], 1.0, 20_000.0)
+            if band[0] >= band[1]:
+                raise ValueError(f"{prefix}.band must increase")
+
+    room = preset.get("room", {})
+    if not isinstance(room, dict) or room.keys() - {"wet", "decay"}:
+        raise ValueError(f"preset {name}: room must be a mapping with known fields")
+    if "wet" in room:
+        _number(f"preset {name}: room.wet", room["wet"], 0.0, 1.0)
+    if "decay" in room:
+        _number(f"preset {name}: room.decay", room["decay"], 0.0, 1.0)
 
 
 for _name in PRESETS:

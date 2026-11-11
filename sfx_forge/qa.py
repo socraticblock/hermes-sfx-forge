@@ -32,6 +32,8 @@ def _db(value: float) -> float:
 
 
 def spectral_centroid(x: np.ndarray, sr: int) -> float:
+    if not x.size:
+        return 0.0
     spec = np.abs(np.fft.rfft(x))
     freqs = np.fft.rfftfreq(len(x), 1.0 / sr)
     total = float(spec.sum())
@@ -39,6 +41,8 @@ def spectral_centroid(x: np.ndarray, sr: int) -> float:
 
 
 def band_ratio(x: np.ndarray, sr: int, lo: float, hi: float) -> float:
+    if not x.size:
+        return 0.0
     spec = np.abs(np.fft.rfft(x)) ** 2
     freqs = np.fft.rfftfreq(len(x), 1.0 / sr)
     sel = (freqs >= lo) & (freqs < hi)
@@ -48,7 +52,7 @@ def band_ratio(x: np.ndarray, sr: int, lo: float, hi: float) -> float:
 
 def measure(x: np.ndarray, sr: int, policy: dict = POLICY) -> dict:
     x = np.asarray(x)
-    mono = x if x.ndim == 1 else x.mean(axis=0)
+    mono = x if x.ndim == 1 else x.mean(axis=1)
     peak = float(np.max(np.abs(mono))) if mono.size else 0.0
     up = resample_poly(mono, int(policy["oversample"]), 1)
     isp = float(np.max(np.abs(up))) if up.size else 0.0
@@ -73,19 +77,35 @@ def measure(x: np.ndarray, sr: int, policy: dict = POLICY) -> dict:
 def evaluate(x: np.ndarray, sr: int, expected_samples: int | None = None,
              policy: dict = POLICY) -> dict:
     """Return a machine-readable verdict; never raises on bad audio."""
-    x = np.asarray(x)
-    m = measure(x, sr, policy)
+    try:
+        x = np.asarray(x, dtype=np.float64)
+        if x.ndim not in (1, 2):
+            raise ValueError("audio must have one or two dimensions")
+        finite = bool(np.isfinite(x).all())
+        # Measurements must never crash on NaN/Inf. The finite gate still fails.
+        clean = np.nan_to_num(x, nan=0.0, posinf=1.0, neginf=-1.0)
+        m = measure(clean, max(int(sr), 1), policy)
+        mono = clean if clean.ndim == 1 else clean.mean(axis=1)
+        peak = float(np.max(np.abs(mono))) if mono.size else 0.0
+        isp = float(np.max(np.abs(resample_poly(mono, int(policy["oversample"]), 1)))) if mono.size else 0.0
+    except (TypeError, ValueError, OverflowError, MemoryError):
+        return {"policy_version": QA_POLICY_VERSION, "expected_samples": expected_samples,
+                "gates": {"pcm_finite": False}, "failed_gates": ["pcm_finite"],
+                "passed": False, "measurements": {}, "warnings": []}
+    dc_abs = abs(float(np.mean(mono))) if mono.size else 0.0
+    edge_limit = 10 ** (policy["edge_silence_dbfs"] / 20.0)
+    edge_ok = bool(mono.size) and abs(float(mono[0])) <= edge_limit and abs(float(mono[-1])) <= edge_limit
     gates = {
-        "pcm_finite": bool(np.isfinite(x).all()),
+        "has_audio": bool(mono.size),
+        "pcm_finite": finite,
         "sample_rate": int(sr) == int(policy["sample_rate"]),
         "mono": x.ndim == 1,
         "sample_count_exact": (expected_samples is None or m["sample_count"] == int(expected_samples)),
         "no_clipping": m["clipped_samples"] == 0,
-        "sample_peak_below_ceiling": m["sample_peak_dbfs"] <= policy["sample_peak_ceiling_dbfs"],
-        "intersample_peak_below_ceiling": m["intersample_peak_dbtp"] <= policy["intersample_peak_ceiling_dbtp"],
-        "dc_offset_clean": abs(m["dc_offset"]) <= policy["dc_max_abs"],
-        "edge_silence": (m["first_sample_dbfs"] <= policy["edge_silence_dbfs"]
-                         and m["last_sample_dbfs"] <= policy["edge_silence_dbfs"]),
+        "sample_peak_below_ceiling": peak <= 10 ** (policy["sample_peak_ceiling_dbfs"] / 20.0),
+        "intersample_peak_below_ceiling": isp <= 10 ** (policy["intersample_peak_ceiling_dbtp"] / 20.0),
+        "dc_offset_clean": dc_abs <= policy["dc_max_abs"],
+        "edge_silence": edge_ok,
     }
     failed = [k for k, v in gates.items() if not v]
     return {
