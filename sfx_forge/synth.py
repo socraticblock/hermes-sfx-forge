@@ -13,7 +13,7 @@ from __future__ import annotations
 import hashlib
 
 import numpy as np
-from scipy.signal import resample_poly
+from scipy.signal import lfilter, resample_poly
 
 from .qa import POLICY
 
@@ -39,13 +39,9 @@ def cue_rng(preset_name: str, seed: int) -> np.random.Generator:
 
 
 def _lowpass(x: np.ndarray, cutoff_hz: float) -> np.ndarray:
+    """One-pole low-pass, applied as a filter rather than a Python sample loop."""
     a = float(np.exp(-2.0 * np.pi * cutoff_hz / SR))
-    y = np.empty_like(x)
-    acc = 0.0
-    for i in range(len(x)):
-        acc = (1.0 - a) * x[i] + a * acc
-        y[i] = acc
-    return y
+    return lfilter([1.0 - a], [1.0, -a], x)
 
 
 def _bandpass(x: np.ndarray, lo: float, hi: float) -> np.ndarray:
