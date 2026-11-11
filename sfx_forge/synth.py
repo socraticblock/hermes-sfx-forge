@@ -15,12 +15,17 @@ import hashlib
 import numpy as np
 from scipy.signal import resample_poly
 
+from .qa import POLICY
+
 SR = 44100.0
 ENV_ATTACK_S = 0.003
 EDGE_FADE_S = 0.002
-PEAK_TARGET = 0.84  # -1.51 dBFS, below the -1.0 dBFS gate ceiling
-ISP_TARGET = 0.84  # -1.51 dBTP, below the -1.0 dBTP gate ceiling
-OVERSAMPLE = 4
+# Render targets are derived from the gate policy, never restated: change the
+# ceiling in one place and the renderer follows, so a file cannot fail its own gate.
+HEADROOM_DB = 0.5
+PEAK_TARGET = 10 ** ((POLICY["sample_peak_ceiling_dbfs"] - HEADROOM_DB) / 20.0)
+ISP_TARGET = 10 ** ((POLICY["intersample_peak_ceiling_dbtp"] - HEADROOM_DB) / 20.0)
+OVERSAMPLE = int(POLICY["oversample"])
 
 
 def cue_rng(preset_name: str, seed: int) -> np.random.Generator:

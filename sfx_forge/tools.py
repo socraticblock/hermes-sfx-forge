@@ -5,8 +5,8 @@ from __future__ import annotations
 import json
 
 from .core import MAX_CUES_PER_CALL, RequestRejected, generate_pack, verify_pack
-from .paths import PathRejected, workspace_root
-from .presets import MAX_DURATION_MS, preset_names
+from .paths import PathRejected
+from .presets import preset_names
 
 TOOLSET = "sfx_forge"
 
@@ -88,7 +88,6 @@ def handle_generate(args: dict) -> dict:
         presets=args.get("presets"),
         seed=args.get("seed", 0),
         folder=args.get("folder", "pack"),
-        root=workspace_root(),
         overwrite=args.get("overwrite", False),
     )
 
@@ -98,7 +97,7 @@ def handle_verify(args: dict) -> dict:
     folder = args.get("folder")
     if not folder:
         raise RequestRejected("folder is required")
-    return verify_pack(folder, root=workspace_root(), presets=args.get("presets"))
+    return verify_pack(folder, presets=args.get("presets"))
 
 
 TOOLS = (

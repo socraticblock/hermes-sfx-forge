@@ -60,6 +60,10 @@ floating-point results and the WAV quantizer are only pinned per environment.
 
 ## Output safety
 
+`verify --folder` enforces the exact sample count for every preset it checks. A bare
+`verify <path>` cannot know which preset produced the file, so it reports the count
+it measured instead of asserting equality — use the folder form for a gate verdict.
+
 Names must match `^[a-z0-9][a-z0-9_-]{0,39}$`. Absolute paths, traversal, Windows
 drive forms, separators, symlinks and collisions are refused in code, and files are
 published through a private temporary file and an atomic rename, so a partial WAV

@@ -16,8 +16,8 @@ from pathlib import Path
 import numpy as np
 
 from . import paths as P
-from .presets import MAX_DURATION_MS, PRESET_SCHEMA_VERSION, PRESETS, preset_names, validate_preset
-from .qa import POLICY, QA_POLICY_VERSION, evaluate, measure
+from .presets import PRESET_SCHEMA_VERSION, PRESETS, preset_names, validate_preset
+from .qa import QA_POLICY_VERSION, evaluate
 from .synth import SR, render
 
 MAX_CUES_PER_CALL = 16

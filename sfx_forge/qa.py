@@ -75,7 +75,6 @@ def evaluate(x: np.ndarray, sr: int, expected_samples: int | None = None,
     """Return a machine-readable verdict; never raises on bad audio."""
     x = np.asarray(x)
     m = measure(x, sr, policy)
-    mono = x if x.ndim == 1 else x.mean(axis=0)
     gates = {
         "pcm_finite": bool(np.isfinite(x).all()),
         "sample_rate": int(sr) == int(policy["sample_rate"]),
