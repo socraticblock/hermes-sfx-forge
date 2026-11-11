@@ -1,0 +1,19 @@
+name: hermes-sfx-forge
+version: "1.0.0"
+description: >
+  Deterministic, sample-free game sound effects: two tools that render short
+  one-shot WAV cues from named presets with an explicit seed, then verify each
+  file against a fixed delivery gate (exact sample count, sample and
+  inter-sample peak ceilings, DC offset, clipping, edge silence) and return a
+  manifest with per-cue measurements and sha256 hashes. Synthesis is pure NumPy:
+  no samples, no model, no network, no subprocess. Output location is a workspace
+  name, never an absolute path, and the same workspace policy applies to the CLI.
+author: Socraticblock
+license: MIT
+requires_hermes: ">=0.21.0"
+provides_tools:
+  - sfx_generate
+  - sfx_verify
+provides_hooks: []
+capabilities:
+  provides_middleware: []
